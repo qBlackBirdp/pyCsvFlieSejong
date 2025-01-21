@@ -61,7 +61,7 @@ def process_population_data(input_file_path, output_file_path):
         value_name='값'
     )
 
-    # 시간과 지표 분리
+    # 시간과 지표 분리 및 날짜 생성
     def split_time_metric(row):
         try:
             period, metric = row['시간'].split('/')
@@ -81,6 +81,15 @@ def process_population_data(input_file_path, output_file_path):
                 row['지표'] = '순이동률'
             else:
                 row['지표'] = '전입률'
+
+            # 날짜 생성
+            quarter_start_month = {
+                'Q1': '01',
+                'Q2': '04',
+                'Q3': '07',
+                'Q4': '10'
+            }
+            row['날짜'] = f"{year}-{quarter_start_month[row['분기']]}-01"
         except Exception as e:
             print(f"Error processing row: {row['시간']}, Error: {e}")
         return row
@@ -88,7 +97,7 @@ def process_population_data(input_file_path, output_file_path):
     long_format = long_format.apply(split_time_metric, axis=1)
 
     # 불필요한 열 제거 및 재정렬
-    long_format = long_format[['지역', 'latitude', 'longitude', '연도', '분기', '지표', '값']]
+    long_format = long_format[['지역', 'latitude', 'longitude', '날짜', '연도', '분기', '지표', '값']]
 
     # 새로운 CSV 파일로 저장
     long_format.to_csv(output_file_path, index=False)
@@ -99,6 +108,6 @@ def process_population_data(input_file_path, output_file_path):
 # 예시 실행
 if __name__ == '__main__':
     input_file_path = 'data/인구이동률_월__분기__년__20250120211642.csv'  # 업로드된 파일 경로
-    output_file_path = 'data/processed_population_data_long_format.csv'  # 저장할 파일 경로
+    output_file_path = 'data/processed_population_data_long_format_with_date.csv'  # 저장할 파일 경로
 
     process_population_data(input_file_path, output_file_path)
