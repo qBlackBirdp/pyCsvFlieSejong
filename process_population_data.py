@@ -38,76 +38,32 @@ def add_coordinates(row):
     return row
 
 
-# CSV 파일을 정리하는 함수
-def process_population_data(input_file_path, output_file_path):
-    # CSV 파일 불러오기
-    population_data = pd.read_csv(input_file_path)
+# 기존 처리된 파일을 수정하여 지표를 컬럼으로 나누는 함수
+def split_indicators(input_file_path, output_file_path):
+    # 처리된 CSV 파일 불러오기
+    processed_data = pd.read_csv(input_file_path)
 
-    # '행정구역(시도)별' 컬럼을 '지역'으로 변환하여 위도/경도 추가
-    population_data['지역'] = population_data['행정구역(시도)별'].str.strip()  # 공백 제거
+    # 값을 숫자로 변환
+    processed_data['값'] = pd.to_numeric(processed_data['값'], errors='coerce')
 
-    # 위도/경도 데이터 추가
-    population_data = population_data.apply(add_coordinates, axis=1)
+    # 지표를 개별 컬럼으로 변환
+    wide_format = processed_data.pivot_table(
+        index=['지역', 'latitude', 'longitude', '날짜', '연도', '분기'],
+        columns='지표',
+        values='값'
+    ).reset_index()
 
-    # 데이터 변환: Wide Format -> Long Format
-    id_vars = ['지역', 'latitude', 'longitude']  # 고정 열
-    value_vars = [col for col in population_data.columns if '/' in col]  # 시간 관련 열
+    # 컬럼 이름 정리
+    wide_format.columns.name = None
 
-    long_format = pd.melt(
-        population_data,
-        id_vars=id_vars,
-        value_vars=value_vars,
-        var_name='시간',
-        value_name='값'
-    )
-
-    # 시간과 지표 분리 및 날짜 생성
-    def split_time_metric(row):
-        try:
-            period, metric = row['시간'].split('/')
-            year, quarter = period.split('.')
-            quarter_map = {
-                '1': 'Q1',
-                '2': 'Q2',
-                '3': 'Q3',
-                '4': 'Q4'
-            }
-            row['연도'] = year
-            row['분기'] = quarter_map[quarter]
-
-            if metric.endswith('.1'):
-                row['지표'] = '전출률'
-            elif metric.endswith('.2'):
-                row['지표'] = '순이동률'
-            else:
-                row['지표'] = '전입률'
-
-            # 날짜 생성
-            quarter_start_month = {
-                'Q1': '01',
-                'Q2': '04',
-                'Q3': '07',
-                'Q4': '10'
-            }
-            row['날짜'] = f"{year}-{quarter_start_month[row['분기']]}-01"
-        except Exception as e:
-            print(f"Error processing row: {row['시간']}, Error: {e}")
-        return row
-
-    long_format = long_format.apply(split_time_metric, axis=1)
-
-    # 불필요한 열 제거 및 재정렬
-    long_format = long_format[['지역', 'latitude', 'longitude', '날짜', '연도', '분기', '지표', '값']]
-
-    # 새로운 CSV 파일로 저장
-    long_format.to_csv(output_file_path, index=False)
-
-    print(f"처리된 파일이 저장되었습니다: {output_file_path}")
+    # 저장된 결과를 새로운 CSV 파일로 저장
+    wide_format.to_csv(output_file_path, index=False)
+    print(f"수정된 파일이 저장되었습니다: {output_file_path}")
 
 
 # 예시 실행
 if __name__ == '__main__':
-    input_file_path = 'data/인구이동률_월__분기__년__20250120211642.csv'  # 업로드된 파일 경로
-    output_file_path = 'data/processed_population_data_long_format_with_date.csv'  # 저장할 파일 경로
+    input_file_path = 'data/processed_population_data_long_format_with_date.csv'  # 처리된 파일 경로
+    output_file_path = 'data/modified_population_data_with_indicators.csv'  # 저장할 파일 경로
 
-    process_population_data(input_file_path, output_file_path)
+    split_indicators(input_file_path, output_file_path)
