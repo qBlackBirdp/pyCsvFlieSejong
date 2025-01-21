@@ -49,42 +49,49 @@ def process_population_data(input_file_path, output_file_path):
     # 위도/경도 데이터 추가
     population_data = population_data.apply(add_coordinates, axis=1)
 
-    # 컬럼 이름 정리
-    column_mappings = {}
-    for col in population_data.columns:
-        if "/" in col:
-            try:
-                period, metric = col.split('/')
-                year, quarter = period.split('.')
-                quarter_map = {
-                    '1': 'Q1',
-                    '2': 'Q2',
-                    '3': 'Q3',
-                    '4': 'Q4'
-                }
-                suffix = ''
-                if metric.endswith('.1'):
-                    suffix = '_전출률'
-                elif metric.endswith('.2'):
-                    suffix = '_순이동률'
-                else:
-                    suffix = '_전입률'
+    # 데이터 변환: Wide Format -> Long Format
+    id_vars = ['지역', 'latitude', 'longitude']  # 고정 열
+    value_vars = [col for col in population_data.columns if '/' in col]  # 시간 관련 열
 
-                column_mappings[col] = f"{year}_{quarter_map[quarter]}{suffix}"
+    long_format = pd.melt(
+        population_data,
+        id_vars=id_vars,
+        value_vars=value_vars,
+        var_name='시간',
+        value_name='값'
+    )
 
-            except Exception as e:
-                print(f"Error processing column: {col}, Error: {e}")
+    # 시간과 지표 분리
+    def split_time_metric(row):
+        try:
+            period, metric = row['시간'].split('/')
+            year, quarter = period.split('.')
+            quarter_map = {
+                '1': 'Q1',
+                '2': 'Q2',
+                '3': 'Q3',
+                '4': 'Q4'
+            }
+            row['연도'] = year
+            row['분기'] = quarter_map[quarter]
 
-    # 매핑되지 않은 컬럼 로그 출력
-    unmapped_columns = [col for col in population_data.columns if col not in column_mappings and '/' in col]
-    if unmapped_columns:
-        print(f"Unmapped columns: {unmapped_columns}")
+            if metric.endswith('.1'):
+                row['지표'] = '전출률'
+            elif metric.endswith('.2'):
+                row['지표'] = '순이동률'
+            else:
+                row['지표'] = '전입률'
+        except Exception as e:
+            print(f"Error processing row: {row['시간']}, Error: {e}")
+        return row
 
-    # 컬럼 이름 변경
-    population_data.rename(columns=column_mappings, inplace=True)
+    long_format = long_format.apply(split_time_metric, axis=1)
+
+    # 불필요한 열 제거 및 재정렬
+    long_format = long_format[['지역', 'latitude', 'longitude', '연도', '분기', '지표', '값']]
 
     # 새로운 CSV 파일로 저장
-    population_data.to_csv(output_file_path, index=False)
+    long_format.to_csv(output_file_path, index=False)
 
     print(f"처리된 파일이 저장되었습니다: {output_file_path}")
 
@@ -92,6 +99,6 @@ def process_population_data(input_file_path, output_file_path):
 # 예시 실행
 if __name__ == '__main__':
     input_file_path = 'data/인구이동률_월__분기__년__20250120211642.csv'  # 업로드된 파일 경로
-    output_file_path = 'data/processed_population_data.csv'  # 저장할 파일 경로
+    output_file_path = 'data/processed_population_data_long_format.csv'  # 저장할 파일 경로
 
     process_population_data(input_file_path, output_file_path)
