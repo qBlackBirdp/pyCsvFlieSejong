@@ -5,7 +5,7 @@ import pandas as pd
 # 위도와 경도 추가하기 위한 대표 값 (임의로 설정한 예시)
 coordinates = {
     '세종특별자치시': {'latitude': 36.4800, 'longitude': 127.2890},
-    '서울특별시': {'latitude': 37.5665, 'longitude': 126.9780},
+    '서울특별자치시': {'latitude': 37.5665, 'longitude': 126.9780},
     '부산광역시': {'latitude': 35.1796, 'longitude': 129.0756},
     '인천광역시': {'latitude': 37.4563, 'longitude': 126.7052},
     '대구광역시': {'latitude': 35.8714, 'longitude': 128.6014},
@@ -53,13 +53,32 @@ def process_population_data(input_file_path, output_file_path):
     column_mappings = {}
     for col in population_data.columns:
         if "/" in col:
-            period, metric = col.split('/')
-            if metric == '4':
-                column_mappings[col] = f"{period}Q1_전입률"
-            elif metric == '4.1':
-                column_mappings[col] = f"{period}Q1_전출률"
-            elif metric == '4.2':
-                column_mappings[col] = f"{period}Q1_순이동률"
+            try:
+                period, metric = col.split('/')
+                year, quarter = period.split('.')
+                quarter_map = {
+                    '1': 'Q1',
+                    '2': 'Q2',
+                    '3': 'Q3',
+                    '4': 'Q4'
+                }
+                suffix = ''
+                if metric.endswith('.1'):
+                    suffix = '_전출률'
+                elif metric.endswith('.2'):
+                    suffix = '_순이동률'
+                else:
+                    suffix = '_전입률'
+
+                column_mappings[col] = f"{year}_{quarter_map[quarter]}{suffix}"
+
+            except Exception as e:
+                print(f"Error processing column: {col}, Error: {e}")
+
+    # 매핑되지 않은 컬럼 로그 출력
+    unmapped_columns = [col for col in population_data.columns if col not in column_mappings and '/' in col]
+    if unmapped_columns:
+        print(f"Unmapped columns: {unmapped_columns}")
 
     # 컬럼 이름 변경
     population_data.rename(columns=column_mappings, inplace=True)
