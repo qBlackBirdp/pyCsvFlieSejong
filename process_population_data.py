@@ -38,16 +38,31 @@ def add_coordinates(row):
     return row
 
 
-# CSV 파일을 읽어오는 함수
+# CSV 파일을 정리하는 함수
 def process_population_data(input_file_path, output_file_path):
     # CSV 파일 불러오기
     population_data = pd.read_csv(input_file_path)
 
     # '행정구역(시도)별' 컬럼을 '지역'으로 변환하여 위도/경도 추가
-    population_data['지역'] = population_data['행정구역(시도)별'].apply(lambda x: x.strip())  # 공백 제거
+    population_data['지역'] = population_data['행정구역(시도)별'].str.strip()  # 공백 제거
 
     # 위도/경도 데이터 추가
     population_data = population_data.apply(add_coordinates, axis=1)
+
+    # 컬럼 이름 정리
+    column_mappings = {}
+    for col in population_data.columns:
+        if "/" in col:
+            period, metric = col.split('/')
+            if metric == '4':
+                column_mappings[col] = f"{period}Q1_전입률"
+            elif metric == '4.1':
+                column_mappings[col] = f"{period}Q1_전출률"
+            elif metric == '4.2':
+                column_mappings[col] = f"{period}Q1_순이동률"
+
+    # 컬럼 이름 변경
+    population_data.rename(columns=column_mappings, inplace=True)
 
     # 새로운 CSV 파일로 저장
     population_data.to_csv(output_file_path, index=False)
